@@ -1,3 +1,4 @@
+// Package websocketproxy FIXME
 package websocketproxy
 
 import (
@@ -24,6 +25,7 @@ type Dialer interface {
 	DialContext(ctx context.Context, urlStr string, requestHeader http.Header) (*websocket.Conn, *http.Response, error)
 }
 
+// NewSingleHostReverseProxy Creates a new ReverseProxy.
 func NewSingleHostReverseProxy(target *url.URL) *ReverseProxy {
 	targetQuery := target.RawQuery
 
