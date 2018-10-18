@@ -78,25 +78,6 @@ type ReverseProxy struct {
 	Logger       logger
 }
 
-func (p *ReverseProxy) logf(format string, args ...interface{}) {
-	if p.Logger == nil {
-		log.Printf(format, args...)
-	}
-	p.Logger.Printf(format, args...)
-}
-
-func (p *ReverseProxy) defaultErrorHandler(rw http.ResponseWriter, req *http.Request, err error) {
-	p.logf("http: proxy error: %v", err)
-	rw.WriteHeader(http.StatusBadGateway)
-}
-
-func (p *ReverseProxy) getErrorHandler() func(http.ResponseWriter, *http.Request, error) {
-	if p.ErrorHandler != nil {
-		return p.ErrorHandler
-	}
-	return p.defaultErrorHandler
-}
-
 func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	dialer := p.Dialer
 	if dialer == nil {
@@ -193,6 +174,25 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if e, ok := err.(*websocket.CloseError); !ok || e.Code == websocket.CloseAbnormalClosure {
 		p.logf(message, err)
 	}
+}
+
+func (p *ReverseProxy) getErrorHandler() func(http.ResponseWriter, *http.Request, error) {
+	if p.ErrorHandler != nil {
+		return p.ErrorHandler
+	}
+	return p.defaultErrorHandler
+}
+
+func (p *ReverseProxy) defaultErrorHandler(rw http.ResponseWriter, req *http.Request, err error) {
+	p.logf("http: proxy error: %v", err)
+	rw.WriteHeader(http.StatusBadGateway)
+}
+
+func (p *ReverseProxy) logf(format string, args ...interface{}) {
+	if p.Logger == nil {
+		log.Printf(format, args...)
+	}
+	p.Logger.Printf(format, args...)
 }
 
 func replicateWebsocketConn(dst, src *websocket.Conn, errc chan error) {
