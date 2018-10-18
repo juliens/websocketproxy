@@ -195,15 +195,6 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func removeHopHeaders(headers http.Header) {
-	for _, h := range hopHeaders {
-		hv := headers.Get(h)
-		if hv != "" {
-			headers.Del(h)
-		}
-	}
-}
-
 func replicateWebsocketConn(dst, src *websocket.Conn, errc chan error) {
 	forward := func(messageType int, reader io.Reader) error {
 		writer, err := dst.NextWriter(messageType)

@@ -72,3 +72,12 @@ func removeConnectionHeaders(h http.Header) {
 		}
 	}
 }
+
+func removeHopHeaders(headers http.Header) {
+	for _, h := range hopHeaders {
+		hv := headers.Get(h)
+		if hv != "" {
+			headers.Del(h)
+		}
+	}
+}
