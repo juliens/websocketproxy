@@ -26,6 +26,7 @@ type Dialer interface {
 
 func NewSingleHostReverseProxy(target *url.URL) *ReverseProxy {
 	targetQuery := target.RawQuery
+
 	director := func(req *http.Request) {
 		req.URL.Scheme = target.Scheme
 		req.URL.Host = target.Host
@@ -36,6 +37,7 @@ func NewSingleHostReverseProxy(target *url.URL) *ReverseProxy {
 		} else {
 			req.URL.RawQuery = targetQuery + "&" + req.URL.RawQuery
 		}
+
 		if _, ok := req.Header["User-Agent"]; !ok {
 			// explicitly disable User-Agent so it's not set to default value
 			req.Header.Set("User-Agent", "")
@@ -47,8 +49,8 @@ func NewSingleHostReverseProxy(target *url.URL) *ReverseProxy {
 		case "http":
 			req.URL.Scheme = "ws"
 		}
-
 	}
+
 	return &ReverseProxy{Director: director}
 }
 
@@ -136,7 +138,7 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 				p.getErrorHandler()(rw, outReq, errHijack)
 				return
 			}
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 
 			errWrite := resp.Write(conn)
 			if errWrite != nil {
@@ -171,8 +173,8 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	defer func() {
-		underlyingConn.Close()
-		targetConn.Close()
+		_ = underlyingConn.Close()
+		_ = targetConn.Close()
 		if p.WebsocketConnectionClosedHook != nil {
 			p.WebsocketConnectionClosedHook(req, underlyingConn.UnderlyingConn())
 		}
@@ -195,11 +197,9 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if e, ok := err.(*websocket.CloseError); !ok || e.Code == websocket.CloseAbnormalClosure {
 		p.logf(message, err)
 	}
-
 }
 
 func replicateWebsocketConn(dst, src *websocket.Conn, errc chan error) {
-
 	forward := func(messageType int, reader io.Reader) error {
 		writer, err := dst.NextWriter(messageType)
 		if err != nil {
@@ -239,7 +239,8 @@ func replicateWebsocketConn(dst, src *websocket.Conn, errc chan error) {
 			}
 			errc <- err
 			if m != nil {
-				forward(websocket.CloseMessage, bytes.NewReader([]byte(m)))
+				// FIXME manage error?
+				_ = forward(websocket.CloseMessage, bytes.NewReader(m))
 			}
 			break
 		}

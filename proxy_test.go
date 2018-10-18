@@ -12,13 +12,12 @@ import (
 )
 
 func TestWebSocketEcho(t *testing.T) {
-
 	mux := http.NewServeMux()
 	mux.Handle("/ws", websocket.Handler(func(conn *websocket.Conn) {
 		msg := make([]byte, 4)
-		len, _ := conn.Read(msg)
-		conn.Write(msg[:len])
-		conn.Close()
+		msgLen, _ := conn.Read(msg)
+		_, _ = conn.Write(msg[:msgLen])
+		_ = conn.Close()
 	}))
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -45,8 +44,11 @@ func TestWebSocketEcho(t *testing.T) {
 	conn, resp, err := gorillawebsocket.DefaultDialer.Dial(webSocketURL, headers)
 	require.NoError(t, err, "Error during Dial with response: %+v", resp)
 
-	conn.WriteMessage(gorillawebsocket.TextMessage, []byte("OK"))
-	conn.ReadMessage()
+	err = conn.WriteMessage(gorillawebsocket.TextMessage, []byte("OK"))
+	require.NoError(t, err)
+	_, _, err = conn.ReadMessage()
+	require.NoError(t, err)
 
-	conn.Close()
+	err = conn.Close()
+	require.NoError(t, err)
 }
