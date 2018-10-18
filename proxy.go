@@ -92,13 +92,7 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	p.Director(outReq)
 
-	for _, h := range WebsocketDialHeaders {
-		hv := outReq.Header.Get(h)
-		if hv == "" {
-			continue
-		}
-		outReq.Header.Del(h)
-	}
+	removeHeaders(outReq.Header, WebsocketDialHeaders)
 
 	targetConn, resp, err := dialer.DialContext(outReq.Context(), outReq.URL.String(), outReq.Header)
 	if err != nil {
@@ -139,7 +133,7 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}}
 
 	removeConnectionHeaders(resp.Header)
-	removeHopHeaders(resp.Header)
+	removeHeaders(resp.Header, hopHeaders)
 
 	copyHeader(resp.Header, rw.Header())
 

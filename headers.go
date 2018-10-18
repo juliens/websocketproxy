@@ -63,21 +63,21 @@ func copyHeader(dst, src http.Header) {
 
 // removeConnectionHeaders removes hop-by-hop headers listed in the "Connection" header of h.
 // See RFC 7230, section 6.1
-func removeConnectionHeaders(h http.Header) {
-	if c := h.Get("Connection"); c != "" {
+func removeConnectionHeaders(header http.Header) {
+	if c := header.Get("Connection"); c != "" {
 		for _, f := range strings.Split(c, ",") {
 			if f = strings.TrimSpace(f); f != "" {
-				h.Del(f)
+				header.Del(f)
 			}
 		}
 	}
 }
 
-func removeHopHeaders(headers http.Header) {
-	for _, h := range hopHeaders {
-		hv := headers.Get(h)
+func removeHeaders(header http.Header, headers []string) {
+	for _, h := range headers {
+		hv := header.Get(h)
 		if hv != "" {
-			headers.Del(h)
+			header.Del(h)
 		}
 	}
 }
