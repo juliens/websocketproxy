@@ -121,8 +121,6 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			p.logf("websocket: Error dialing %q: %v", req.Host, err)
 			p.getErrorHandler()(rw, outReq, err)
 			return
-			errStr := fmt.Sprint(err)
-			rw.Write([]byte(errStr))
 		} else {
 			p.logf("websocket: Error dialing %q: %v with resp: %d %s", req.Host, err, resp.StatusCode, resp.Status)
 			hijacker, ok := rw.(http.Hijacker)
