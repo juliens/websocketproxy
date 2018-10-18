@@ -1,3 +1,4 @@
+// Package websocketproxy FIXME
 package websocketproxy
 
 import (
@@ -19,80 +20,15 @@ type logger interface {
 	Printf(format string, args ...interface{})
 }
 
-// Headers
-const (
-	XForwardedProto        = "X-Forwarded-Proto"
-	XForwardedFor          = "X-Forwarded-For"
-	XForwardedHost         = "X-Forwarded-Host"
-	XForwardedPort         = "X-Forwarded-Port"
-	XForwardedServer       = "X-Forwarded-Server"
-	XRealIp                = "X-Real-Ip"
-	Connection             = "Connection"
-	KeepAlive              = "Keep-Alive"
-	ProxyAuthenticate      = "Proxy-Authenticate"
-	ProxyAuthorization     = "Proxy-Authorization"
-	Te                     = "Te" // canonicalized version of "TE"
-	Trailers               = "Trailers"
-	TransferEncoding       = "Transfer-Encoding"
-	Upgrade                = "Upgrade"
-	ContentLength          = "Content-Length"
-	SecWebsocketKey        = "Sec-Websocket-Key"
-	SecWebsocketVersion    = "Sec-Websocket-Version"
-	SecWebsocketExtensions = "Sec-Websocket-Extensions"
-	SecWebsocketAccept     = "Sec-Websocket-Accept"
-)
-
-var hopHeaders = []string{
-	Connection,
-	KeepAlive,
-	ProxyAuthenticate,
-	ProxyAuthorization,
-	Te, // canonicalized version of "TE"
-	Trailers,
-	TransferEncoding,
-	Upgrade,
-	SecWebsocketAccept,
-	SecWebsocketExtensions,
-	SecWebsocketKey,
-	SecWebsocketVersion,
-}
-
-// WebsocketDialHeaders Websocket dial headers
-var WebsocketDialHeaders = []string{
-	Upgrade,
-	Connection,
-	SecWebsocketKey,
-	SecWebsocketVersion,
-	SecWebsocketExtensions,
-	SecWebsocketAccept,
-}
-
-func copyHeader(dst, src http.Header) {
-	for k, vv := range src {
-		for _, v := range vv {
-			dst.Add(k, v)
-		}
-	}
-}
-
-// removeConnectionHeaders removes hop-by-hop headers listed in the "Connection" header of h.
-// See RFC 7230, section 6.1
-func removeConnectionHeaders(h http.Header) {
-	if c := h.Get("Connection"); c != "" {
-		for _, f := range strings.Split(c, ",") {
-			if f = strings.TrimSpace(f); f != "" {
-				h.Del(f)
-			}
-		}
-	}
-}
-
+// Dialer the websocket dialer
 type Dialer interface {
 	DialContext(ctx context.Context, urlStr string, requestHeader http.Header) (*websocket.Conn, *http.Response, error)
 }
 
+// NewSingleHostReverseProxy Creates a new ReverseProxy.
 func NewSingleHostReverseProxy(target *url.URL) *ReverseProxy {
 	targetQuery := target.RawQuery
+
 	director := func(req *http.Request) {
 		req.URL.Scheme = target.Scheme
 		req.URL.Host = target.Host
@@ -103,6 +39,7 @@ func NewSingleHostReverseProxy(target *url.URL) *ReverseProxy {
 		} else {
 			req.URL.RawQuery = targetQuery + "&" + req.URL.RawQuery
 		}
+
 		if _, ok := req.Header["User-Agent"]; !ok {
 			// explicitly disable User-Agent so it's not set to default value
 			req.Header.Set("User-Agent", "")
@@ -114,8 +51,8 @@ func NewSingleHostReverseProxy(target *url.URL) *ReverseProxy {
 		case "http":
 			req.URL.Scheme = "ws"
 		}
-
 	}
+
 	return &ReverseProxy{Director: director}
 }
 
@@ -188,31 +125,29 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			p.logf("websocket: Error dialing %q: %v", req.Host, err)
 			p.getErrorHandler()(rw, outReq, err)
 			return
-			errStr := fmt.Sprint(err)
-			rw.Write([]byte(errStr))
-		} else {
-			p.logf("websocket: Error dialing %q: %v with resp: %d %s", req.Host, err, resp.StatusCode, resp.Status)
-			hijacker, ok := rw.(http.Hijacker)
-			if !ok {
-				p.logf("websocket: %s can not be hijack", reflect.TypeOf(rw))
-				p.getErrorHandler()(rw, outReq, err)
-				return
-			}
+		}
 
-			conn, _, errHijack := hijacker.Hijack()
-			if errHijack != nil {
-				p.logf("websocket: Failed to hijack responseWriter")
-				p.getErrorHandler()(rw, outReq, errHijack)
-				return
-			}
-			defer conn.Close()
+		p.logf("websocket: Error dialing %q: %v with resp: %d %s", req.Host, err, resp.StatusCode, resp.Status)
+		hijacker, ok := rw.(http.Hijacker)
+		if !ok {
+			p.logf("websocket: %s can not be hijack", reflect.TypeOf(rw))
+			p.getErrorHandler()(rw, outReq, err)
+			return
+		}
 
-			errWrite := resp.Write(conn)
-			if errWrite != nil {
-				p.logf("websocket: Failed to forward response")
-				p.getErrorHandler()(rw, outReq, errWrite)
-				return
-			}
+		conn, _, errHijack := hijacker.Hijack()
+		if errHijack != nil {
+			p.logf("websocket: Failed to hijack responseWriter")
+			p.getErrorHandler()(rw, outReq, errHijack)
+			return
+		}
+		defer func() { _ = conn.Close() }()
+
+		errWrite := resp.Write(conn)
+		if errWrite != nil {
+			p.logf("websocket: Failed to forward response")
+			p.getErrorHandler()(rw, outReq, errWrite)
+			return
 		}
 		return
 	}
@@ -240,8 +175,8 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	defer func() {
-		underlyingConn.Close()
-		targetConn.Close()
+		_ = underlyingConn.Close()
+		_ = targetConn.Close()
 		if p.WebsocketConnectionClosedHook != nil {
 			p.WebsocketConnectionClosedHook(req, underlyingConn.UnderlyingConn())
 		}
@@ -264,11 +199,9 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if e, ok := err.(*websocket.CloseError); !ok || e.Code == websocket.CloseAbnormalClosure {
 		p.logf(message, err)
 	}
-
 }
 
 func replicateWebsocketConn(dst, src *websocket.Conn, errc chan error) {
-
 	forward := func(messageType int, reader io.Reader) error {
 		writer, err := dst.NextWriter(messageType)
 		if err != nil {
@@ -308,7 +241,8 @@ func replicateWebsocketConn(dst, src *websocket.Conn, errc chan error) {
 			}
 			errc <- err
 			if m != nil {
-				forward(websocket.CloseMessage, bytes.NewReader([]byte(m)))
+				// FIXME manage error?
+				_ = forward(websocket.CloseMessage, bytes.NewReader(m))
 			}
 			break
 		}
