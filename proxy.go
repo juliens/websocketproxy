@@ -96,34 +96,7 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	targetConn, resp, err := dialer.DialContext(outReq.Context(), outReq.URL.String(), outReq.Header)
 	if err != nil {
-		if resp == nil {
-			p.logf("websocket: Error dialing %q: %v", req.Host, err)
-			p.getErrorHandler()(rw, outReq, err)
-			return
-		}
-
-		p.logf("websocket: Error dialing %q: %v with resp: %d %s", req.Host, err, resp.StatusCode, resp.Status)
-		hijacker, ok := rw.(http.Hijacker)
-		if !ok {
-			p.logf("websocket: %s can not be hijack", reflect.TypeOf(rw))
-			p.getErrorHandler()(rw, outReq, err)
-			return
-		}
-
-		conn, _, errHijack := hijacker.Hijack()
-		if errHijack != nil {
-			p.logf("websocket: Failed to hijack responseWriter")
-			p.getErrorHandler()(rw, outReq, errHijack)
-			return
-		}
-		defer func() { _ = conn.Close() }()
-
-		errWrite := resp.Write(conn)
-		if errWrite != nil {
-			p.logf("websocket: Failed to forward response")
-			p.getErrorHandler()(rw, outReq, errWrite)
-			return
-		}
+		p.handleDialError(rw, req, outReq, resp, err)
 		return
 	}
 
@@ -167,6 +140,37 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	if e, ok := err.(*websocket.CloseError); !ok || e.Code == websocket.CloseAbnormalClosure {
 		p.logf(message, err)
+	}
+}
+
+func (p *ReverseProxy) handleDialError(rw http.ResponseWriter, req, outReq *http.Request, resp *http.Response, err error) {
+	if resp == nil {
+		p.logf("websocket: Error dialing %q: %v", req.Host, err)
+		p.getErrorHandler()(rw, outReq, err)
+		return
+	}
+
+	p.logf("websocket: Error dialing %q: %v with resp: %d %s", req.Host, err, resp.StatusCode, resp.Status)
+	hijacker, ok := rw.(http.Hijacker)
+	if !ok {
+		p.logf("websocket: %s can not be hijack", reflect.TypeOf(rw))
+		p.getErrorHandler()(rw, outReq, err)
+		return
+	}
+
+	conn, _, errHijack := hijacker.Hijack()
+	if errHijack != nil {
+		p.logf("websocket: Failed to hijack responseWriter")
+		p.getErrorHandler()(rw, outReq, errHijack)
+		return
+	}
+	defer func() { _ = conn.Close() }()
+
+	errWrite := resp.Write(conn)
+	if errWrite != nil {
+		p.logf("websocket: Failed to forward response")
+		p.getErrorHandler()(rw, outReq, errWrite)
+		return
 	}
 }
 
