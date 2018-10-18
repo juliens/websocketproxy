@@ -13,6 +13,12 @@ import (
 
 func TestWebSocketEcho(t *testing.T) {
 	mux := http.NewServeMux()
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	uri, err := url.ParseRequestURI(srv.URL)
+	require.NoError(t, err)
+
 	mux.Handle("/ws", websocket.Handler(func(conn *websocket.Conn) {
 		msg := make([]byte, 4)
 		msgLen, _ := conn.Read(msg)
@@ -20,24 +26,12 @@ func TestWebSocketEcho(t *testing.T) {
 		_ = conn.Close()
 	}))
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		mux.ServeHTTP(w, req)
-	}))
-	defer srv.Close()
-
-	uri, err := url.ParseRequestURI(srv.URL)
-	require.NoError(t, err)
-
-	f := NewSingleHostReverseProxy(uri)
-
-	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		f.ServeHTTP(w, req)
-	}))
+	p := NewSingleHostReverseProxy(uri)
+	proxy := httptest.NewServer(p)
 	defer proxy.Close()
 
-	serverAddr := proxy.Listener.Addr().String()
-
 	headers := http.Header{}
+	serverAddr := proxy.Listener.Addr().String()
 	webSocketURL := "ws://" + serverAddr + "/ws"
 	headers.Add("Origin", webSocketURL)
 
@@ -46,6 +40,7 @@ func TestWebSocketEcho(t *testing.T) {
 
 	err = conn.WriteMessage(gorillawebsocket.TextMessage, []byte("OK"))
 	require.NoError(t, err)
+
 	_, _, err = conn.ReadMessage()
 	require.NoError(t, err)
 
