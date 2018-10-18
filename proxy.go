@@ -158,14 +158,7 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}}
 
 	removeConnectionHeaders(resp.Header)
-
-	for _, h := range hopHeaders {
-		hv := resp.Header.Get(h)
-		if hv == "" {
-			continue
-		}
-		resp.Header.Del(h)
-	}
+	removeHopHeaders(resp.Header)
 
 	copyHeader(resp.Header, rw.Header())
 
@@ -174,6 +167,7 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		p.logf("websocket: Error while upgrading connection : %v", err)
 		return
 	}
+
 	defer func() {
 		_ = underlyingConn.Close()
 		_ = targetConn.Close()
@@ -198,6 +192,15 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	if e, ok := err.(*websocket.CloseError); !ok || e.Code == websocket.CloseAbnormalClosure {
 		p.logf(message, err)
+	}
+}
+
+func removeHopHeaders(headers http.Header) {
+	for _, h := range hopHeaders {
+		hv := headers.Get(h)
+		if hv != "" {
+			headers.Del(h)
+		}
 	}
 }
 
