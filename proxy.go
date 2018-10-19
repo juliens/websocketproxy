@@ -1,4 +1,4 @@
-// Package websocketproxy FIXME
+// Package websocketproxy A websocket reverse proxy handler.
 package websocketproxy
 
 import (
@@ -74,6 +74,11 @@ type ReverseProxy struct {
 
 	WebsocketConnectionClosedHook func(req *http.Request, conn net.Conn)
 
+	// ErrorHandler is an optional function that handles errors
+	// reaching the backend or errors from ModifyResponse.
+	//
+	// If nil, the default is to log the provided error and return
+	// a 502 Status Bad Gateway response.
 	ErrorHandler func(rw http.ResponseWriter, req *http.Request, err error)
 	Logger       logger
 }
@@ -107,7 +112,6 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	removeConnectionHeaders(resp.Header)
 	removeHeaders(resp.Header, hopHeaders)
-
 	copyHeader(resp.Header, rw.Header())
 
 	underlyingConn, err := upgrader.Upgrade(rw, req, resp.Header)

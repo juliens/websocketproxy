@@ -7,6 +7,7 @@ import (
 
 // Headers
 const (
+	// TODO
 	XForwardedProto        = "X-Forwarded-Proto"
 	XForwardedFor          = "X-Forwarded-For"
 	XForwardedHost         = "X-Forwarded-Host"
@@ -28,6 +29,7 @@ const (
 	SecWebsocketAccept     = "Sec-Websocket-Accept"
 )
 
+// Hop-by-hop headers.
 var hopHeaders = []string{
 	Connection,
 	KeepAlive,
